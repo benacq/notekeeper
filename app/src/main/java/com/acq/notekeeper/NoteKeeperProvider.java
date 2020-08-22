@@ -6,6 +6,7 @@ import android.database.Cursor;
 import android.net.Uri;
 
 public class NoteKeeperProvider extends ContentProvider {
+
     public NoteKeeperProvider() {
     }
 

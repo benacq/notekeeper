@@ -1,5 +1,12 @@
 package com.acq.notekeeper;
 
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.util.Log;
+
+import com.acq.notekeeper.NoteKeeperDatabaseContract.CourseInfoEntry;
+import com.acq.notekeeper.NoteKeeperDatabaseContract.NoteInfoEntry;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -7,36 +14,88 @@ public class DataManager {
     private static DataManager ourInstance = null;
 
     private List<CourseInfo> mCourses = new ArrayList<>();
-    private List<com.acq.notekeeper.NoteInfo> mNotes = new ArrayList<>();
+    private List<NoteInfo> mNotes = new ArrayList<>();
 
     public static DataManager getInstance() {
         if(ourInstance == null) {
             ourInstance = new DataManager();
-            ourInstance.initializeCourses();
-            ourInstance.initializeExampleNotes();
         }
         return ourInstance;
     }
 
+    public static void loadFromDatabase(NoteKeeperOpenHelper dbHelper){
+      SQLiteDatabase db = dbHelper.getReadableDatabase();
+      final String[] courseColumns = {
+                CourseInfoEntry.COLUMN_COURSE_ID,
+                CourseInfoEntry.COLUMN_COURSE_TITLE};
+        final Cursor courseCursor = db.query(CourseInfoEntry.TABLE_NAME, courseColumns, null, null, null, null, CourseInfoEntry.COLUMN_COURSE_TITLE+" DESC");
+        loadCoursesFromDatabase(courseCursor);
+
+      final String[] noteColumns = {
+                NoteInfoEntry.COLUMN_NOTE_TITLE,
+                NoteInfoEntry.COLUMN_NOTE_TEXT,
+                NoteInfoEntry.COLUMN_COURSE_ID,
+                NoteInfoEntry._ID};
+        String noteOrderBy =  NoteInfoEntry.COLUMN_COURSE_ID +", "+ NoteInfoEntry.COLUMN_NOTE_TITLE;
+        final Cursor noteCursor = db.query(NoteInfoEntry.TABLE_NAME, noteColumns, null, null, null, null, noteOrderBy);
+        loadNotesFromDatabase(noteCursor);
+    }
+
+    private static void loadNotesFromDatabase(Cursor cursor) {
+        int noteTitlePos = cursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TITLE);
+        int noteTextPos = cursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TEXT);
+        int courseIdPos = cursor.getColumnIndex(NoteInfoEntry.COLUMN_COURSE_ID);
+        int idPos = cursor.getColumnIndex(NoteInfoEntry._ID);
+
+        DataManager dm = getInstance();
+        dm.mNotes.clear();
+        while (cursor.moveToNext()){
+            String noteTitle = cursor.getString(noteTitlePos);
+            String noteText = cursor.getString(noteTextPos);
+            String courseId = cursor.getString(courseIdPos);
+            int id = cursor.getInt(idPos);
+
+            CourseInfo noteCourse = dm.getCourse(courseId);
+            NoteInfo note = new NoteInfo(id, noteCourse, noteTitle, noteText);
+            dm.mNotes.add(note);
+        };
+        cursor.close();
+    }
+
+    private static void loadCoursesFromDatabase(Cursor cursor){
+        int courseIdPos = cursor.getColumnIndex(CourseInfoEntry.COLUMN_COURSE_ID);
+        int courseTitlePos = cursor.getColumnIndex(CourseInfoEntry.COLUMN_COURSE_TITLE);
+
+        DataManager dm = getInstance();
+        dm.mCourses.clear();
+    while (cursor.moveToNext()){
+        String courseId = cursor.getString(courseIdPos);
+        String courseTitle = cursor.getString(courseTitlePos);
+        CourseInfo course = new CourseInfo(courseId, courseTitle, null);
+        dm.mCourses.add(course);
+        };
+        cursor.close();
+    }
+
     public String getCurrentUserName() {
-        return "Jim Wilson";
+        return "Ben Acq";
     }
 
     public String getCurrentUserEmail() {
-        return "jimw@jwhh.com";
+        return "benacq.dev@gmail.com";
     }
 
-    public List<com.acq.notekeeper.NoteInfo> getNotes() {
+    public List<NoteInfo> getNotes() {
         return mNotes;
     }
 
     public int createNewNote() {
-        com.acq.notekeeper.NoteInfo note = new com.acq.notekeeper.NoteInfo(null, null, null);
+        NoteInfo note = new NoteInfo(0,null, null, null);
         mNotes.add(note);
         return mNotes.size() - 1;
     }
 
-    public int findNote(com.acq.notekeeper.NoteInfo note) {
+    public int findNote(NoteInfo note) {
         for(int index = 0; index < mNotes.size(); index++) {
             if(note.equals(mNotes.get(index)))
                 return index;
@@ -61,9 +120,9 @@ public class DataManager {
         return null;
     }
 
-    public List<com.acq.notekeeper.NoteInfo> getNotes(CourseInfo course) {
-        ArrayList<com.acq.notekeeper.NoteInfo> notes = new ArrayList<>();
-        for(com.acq.notekeeper.NoteInfo note:mNotes) {
+    public List<NoteInfo> getNotes(CourseInfo course) {
+        ArrayList<NoteInfo> notes = new ArrayList<>();
+        for(NoteInfo note:mNotes) {
             if(course.equals(note.getCourse()))
                 notes.add(note);
         }
@@ -72,7 +131,7 @@ public class DataManager {
 
     public int getNoteCount(CourseInfo course) {
         int count = 0;
-        for(com.acq.notekeeper.NoteInfo note:mNotes) {
+        for(NoteInfo note:mNotes) {
             if(course.equals(note.getCourse()))
                 count++;
         }
@@ -98,17 +157,17 @@ public class DataManager {
         course.getModule("android_intents_m01").setComplete(true);
         course.getModule("android_intents_m02").setComplete(true);
         course.getModule("android_intents_m03").setComplete(true);
-        mNotes.add(new com.acq.notekeeper.NoteInfo(course, "Dynamic intent resolution",
+        mNotes.add(new NoteInfo(0, course, "Dynamic intent resolution",
                 "Wow, intents allow components to be resolved at runtime"));
-        mNotes.add(new com.acq.notekeeper.NoteInfo(course, "Delegating intents",
+        mNotes.add(new NoteInfo(0, course, "Delegating intents",
                 "PendingIntents are powerful; they delegate much more than just a component invocation"));
 
         course = dm.getCourse("android_async");
         course.getModule("android_async_m01").setComplete(true);
         course.getModule("android_async_m02").setComplete(true);
-        mNotes.add(new com.acq.notekeeper.NoteInfo(course, "Service default threads",
+        mNotes.add(new NoteInfo(0, course, "Service default threads",
                 "Did you know that by default an Android Service will tie up the UI thread?"));
-        mNotes.add(new com.acq.notekeeper.NoteInfo(course, "Long running operations",
+        mNotes.add(new NoteInfo(0, course, "Long running operations",
                 "Foreground Services can be tied to a notification icon"));
 
         course = dm.getCourse("java_lang");
@@ -119,18 +178,18 @@ public class DataManager {
         course.getModule("java_lang_m05").setComplete(true);
         course.getModule("java_lang_m06").setComplete(true);
         course.getModule("java_lang_m07").setComplete(true);
-        mNotes.add(new com.acq.notekeeper.NoteInfo(course, "Parameters",
+        mNotes.add(new NoteInfo(0, course, "Parameters",
                 "Leverage variable-length parameter lists"));
-        mNotes.add(new com.acq.notekeeper.NoteInfo(course, "Anonymous classes",
+        mNotes.add(new NoteInfo(0, course, "Anonymous classes",
                 "Anonymous classes simplify implementing one-use types"));
 
         course = dm.getCourse("java_core");
         course.getModule("java_core_m01").setComplete(true);
         course.getModule("java_core_m02").setComplete(true);
         course.getModule("java_core_m03").setComplete(true);
-        mNotes.add(new com.acq.notekeeper.NoteInfo(course, "Compiler options",
+        mNotes.add(new NoteInfo(0, course, "Compiler options",
                 "The -jar option isn't compatible with with the -cp option"));
-        mNotes.add(new com.acq.notekeeper.NoteInfo(course, "Serialization",
+        mNotes.add(new NoteInfo(0, course, "Serialization",
                 "Remember to include SerialVersionUID to assure version compatibility"));
     }
 
